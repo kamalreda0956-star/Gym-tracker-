@@ -1,0 +1,988 @@
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { ChevronRight, ChevronLeft, Check, Flame, TrendingUp, BookOpen, Scissors, Plus, Minus, AlertTriangle } from "lucide-react";
+
+/* ============================================================
+   بيانات البرنامج — نفس النظام بالظبط (٤ أيام تدريب + راحة)
+   ============================================================ */
+
+const SHORT_DAY = { 0: "حد", 1: "اتنين", 2: "تلات", 3: "أربع", 4: "خميس", 5: "جمعة", 6: "سبت" };
+const FULL_DAY = { 0: "الأحد", 1: "الإتنين", 2: "الثلاثاء", 3: "الأربعاء", 4: "الخميس", 5: "الجمعة", 6: "السبت" };
+
+const DAY_META = {
+  6: { type: "train", key: "upperA" },
+  0: { type: "train", key: "lowerA" },
+  1: { type: "rest", note: "study" },
+  2: { type: "train", key: "upperB" },
+  3: { type: "train", key: "lowerB" },
+  4: { type: "rest", note: "study" },
+  5: { type: "rest", note: "full" },
+};
+
+const WORKOUTS = {
+  upperA: {
+    title: "Upper A",
+    focus: "تركيز صدر",
+    exercises: [
+      { id: "ua1", name: "بنش برس بار", sets: 3, target: "8-10", cat: "press", desc: "التمرين الأساسي لزيادة حجم وقوة عضلة الصدر بالكامل", howTo: "نام على البنش، البار فوق منتصف صدرك بالظبط، انزّله لحد ما يلمس الصدر وارجع لفوق بدون ما تقفل المرفق تمام" },
+      { id: "ua2", name: "إنكلاين بنش دمبل", sets: 3, target: "10", cat: "press", desc: "يركّز على تشكيل وملء عضلات الصدر العلوية", howTo: "ارفع البنش بزاوية 30-45 درجة، ادفع الدمبلز لفوق من مستوى الصدر العلوي لحد ما إيدك تقرب تتقفل" },
+      { id: "ua3", name: "لات بول داون (مقبض واسع)", sets: 3, target: "10-12", cat: "pull", desc: "تمرين أساسي لتوسيع عضلات الظهر وإعطائه شكل الـ V", howTo: "امسك المقبض أوسع من الكتفين، اسحب لحد صدرك مع فتح الصدر للقدام وارجع ببطء من غير ما توقع الوزن" },
+      { id: "ua4", name: "شولدر برس دمبل", sets: 3, target: "10", cat: "press", desc: "لبناء وتكفير عضلات الكتف الأمامي والجانبي بكفاءة", howTo: "اقعد ظهرك مستقيم، الدمبلز بجانب دراعك بزاوية 90، ادفعهم لفوق لحد ما يتقابلوا تقريباً فوق دماغك" },
+      { id: "ua5", name: "سيتد كيبل رو", sets: 3, target: "10-12", cat: "pull", desc: "يستهدف زيادة سمك وتفاصيل عضلات منتصف الظهر", howTo: "اقعد وظهرك مستقيم، اسحب المقبض لبطنك مع لزّق الكتفين ورا بعض، ماتميلش بجسمك كتير للورا" },
+      { id: "ua6", name: "باي كيرل دمبل", sets: 3, target: "12", cat: "curl", desc: "لعزل وتكوير عضلة البايسبس الأمامية للذراع", howTo: "المرفق ثابت جنب جسمك، ارفع الدمبل لفوق بلف بسيط للساعد للبرا وانزل ببطء" },
+      { id: "ua7", name: "ترايسب بش داون كيبل", sets: 3, target: "12", cat: "triceps", desc: "لتركيز الضغط على الرأس الخارجي لعضلة الترايسبس الخلفية", howTo: "المرفق ثابت جنب جسمك، ادفع المقبض لتحت لحد ما دراعك يفرد تمام وارجع ببطء" },
+      { id: "ua8", name: "ريست كيرل (ساعد)", sets: 3, target: "15", cat: "curl", desc: "لقوة جبارة في عضلات الساعد وتحسين قوة قفلة إيدك على الوزن", howTo: "ساعدك على البنش وكفك برا، ارفع الوزن بحركة الكف بس من غير ما تحرك الساعد" },
+    ],
+  },
+  lowerA: {
+    title: "Lower A",
+    focus: "تركيز رجل",
+    exercises: [
+      { id: "la1", name: "سكوات بار", sets: 3, target: "8-10", cat: "squat", desc: "ملك تمارين الرجل لبناء الكتل العضلية في الفخذ والمؤخرة", howTo: "البار على الكتف مش الرقبة، انزل لحد ما فخدك يبقى موازي للأرض مع ثبات الركبة فوق القدم، واطلع من الكعب" },
+      { id: "la2", name: "ليج برس", sets: 4, target: "12", cat: "squat", desc: "لضخ الدم وضخامة الفخذ الأمامي بأمان تام على أسفل الظهر", howTo: "رجلك بعرض الكتف على اللوح، انزل لحد ما ركبتك تقرب من صدرك من غير ما ضهرك يرفع من المقعد وادفع من غير قفل كامل للركبة" },
+      { id: "la3", name: "روماني ديدليفت دمبل", sets: 3, target: "10", cat: "hinge", desc: "لتشغيل وعزل عضلات الفخذ الخلفية والـ Glutes", howTo: "ضهرك مستقيم طول الحركة، انزل الدمبلز على طول رجلك مع دفع الحوض للورا لحد ما تحس شد في خلفية الفخد" },
+      { id: "la4", name: "ليج كيرل (مكنة)", sets: 3, target: "12", cat: "legcurl", desc: "تمرين عزل ممتاز لتركيز الحمل بالكامل على خلفيات الرجل", howTo: "نام على بطنك، اثني ركبتك واسحب الوسادة لتحت لحد ما تقرب من مؤخرتك وارجع ببطء" },
+      { id: "la5", name: "كالف ريز واقف", sets: 3, target: "15", cat: "calf", desc: "لتحفيز ونمو عضلة السمانة الواقفة (Gastrocnemius)", howTo: "قف على أطراف صوابعك وارفع كعبك لأعلى نقطة ممكنة، اتوقف ثانية وانزل ببطء لحد ما تحس شد في السمانة" },
+      { id: "la6", name: "بلانك", sets: 3, target: "30-45 ثانية", cat: "hold", hasWeight: false, isTime: true, desc: "لثبات جدار البطن وتقوية عضلات الكور الحامية للظهر", howTo: "استند على المرفق وأطراف صوابعك، خلي جسمك خط مستقيم من الكتف للكعب وشد البطن طول الوقت" },
+    ],
+  },
+  upperB: {
+    title: "Upper B",
+    focus: "تركيز كتف",
+    exercises: [
+      { id: "ub1", name: "ليترال ريز دمبل", sets: 3, target: "12", cat: "raise", desc: "السر الأول لعرض الأكتاف وتدوير العضلة الجانبية", howTo: "الدمبلز جنب فخدك، ارفعهم لجانبين لحد مستوى الكتف بمرفق مفرود شوية، وانزل ببطء من غير هزّ بالجسم" },
+      { id: "ub2", name: "شولدر برس بار أو دمبل", sets: 3, target: "10", cat: "press", desc: "تمرين مركب قوي لبناء قاعدة ضخمة لكامل عضلات الكتف", howTo: "ابدأ من مستوى الكتف وادفع لفوق لحد ما دراعك يفرد تمام، وانزل بالتحكم لنفس النقطة" },
+      { id: "ub3", name: "إنكلاين بنش دمبل", sets: 3, target: "10", cat: "press", desc: "تركيز إضافي رائع لتطوير خط الصدر العلوي", howTo: "ارفع البنش بزاوية 30-45 درجة، ادفع الدمبلز لفوق من مستوى الصدر العلوي لحد ما إيدك تقرب تتقفل" },
+      { id: "ub4", name: "لات بول داون (مقبض ضيق)", sets: 3, target: "10", cat: "pull", desc: "يستهدف سحب اللاتس من الأسفل لزيادة عمق عضلات الظهر", howTo: "امسك المقبض الضيق، اسحب لتحت لحد صدرك مع فتح الصدر وارجع ببطء من غير ما تفلت الوزن" },
+      { id: "ub5", name: "سيتد رو / تشيست سبورتد رو", sets: 3, target: "10", cat: "pull", desc: "لتقوية المجنص وعضلات الظهر العلوية مع حماية الظهر", howTo: "اسحب المقبض لبطنك مع لزّق الكتفين ورا بعض، حافظ على ضهرك ثابت من غير ميل زيادة" },
+      { id: "ub6", name: "هامر كيرل", sets: 3, target: "12", cat: "curl", desc: "لتضخيم عضلة البايسبس الجانبية والساعد (Brachioradialis)", howTo: "امسك الدمبل بوضع عمودي (زي المطرقة) وارفعه لفوق بدون لف الساعد، وانزل ببطء" },
+      { id: "ub7", name: "أوفرهيد ترايسب إكستنشن", sets: 3, target: "12", cat: "triceps", desc: "لتمديد وتشغيل الرأس الطويل للترايسبس المسؤول عن ضخامة الذراع", howTo: "امسك الدمبل بإيدين فوق دماغك، انزله لخلف الراس مع ثبات المرفق وارجع لفوق تمام" },
+      { id: "ub8", name: "ريفيرس ريست كيرل", sets: 3, target: "15", cat: "curl", desc: "لتقوية الجزء الخارجي من الساعد وتوازن شكل الذراع الكامل", howTo: "ساعدك على البنش وكفك لتحت، ارفع الوزن بحركة ظهر الكف بس من غير ما تحرك الساعد" },
+    ],
+  },
+  lowerB: {
+    title: "Lower B",
+    focus: "تكملة رجل + ديدليفت",
+    exercises: [
+      { id: "lb1", name: "ديدليفت", sets: 3, target: "8", cat: "hinge", desc: "أقوى تمرين مركب لتفجير كامل السلسلة الخلفية للجسم من الظهر للرجل", howTo: "البار قريب من قصبتك، ضهرك مستقيم طول الحركة، ادفع الأرض بقدمك وارفع البار عن طريق مد الحوض مش الضهر" },
+      { id: "lb2", name: "ليج إكستنشن (مكنة)", sets: 3, target: "12", cat: "legext", desc: "لعزل وفصل خطوط عضلات الفخذ الأمامية (الكوادز)", howTo: "اقعد ثابت وضهرك ملزّق بالمقعد، افرد رجلك لحد ما تتقفل وارجع ببطء من غير ما ترتد" },
+      { id: "lb3", name: "بلغاريان سبليت سكوات", sets: 4, target: "10 / رجل", cat: "squat", desc: "لعلاج عدم التوازن بين الرجلين وتطوير قوة جبارة لكل رجل منفصلة", howTo: "رجلك الخلفية على بنش، انزل بالرجل الأمامية لحد ما ركبتك الخلفية تقرب من الأرض وارجع لفوق منها" },
+      { id: "lb4", name: "هيب ثرست", sets: 3, target: "12", cat: "hinge", desc: "التمرين الأول عالمياً لعزل وتضخيم عضلات المؤخرة", howTo: "ضهرك العلوي على البنش والبار فوق الحوض، ادفع الحوض لفوق لحد ما جسمك يبقى خط مستقيم وارجع ببطء" },
+      { id: "lb5", name: "سيتد كالف ريز", sets: 3, target: "15", cat: "calf", desc: "لتشغيل عضلة السمانة العميقة (Soleus) من وضع الجلوس", howTo: "وانت قاعد والوزن على ركبتك، ارفع كعبك لأعلى نقطة وثبّت ثانية وانزل ببطء" },
+      { id: "lb6", name: "هانجينج نيز ريز", sets: 3, target: "12-15", cat: "core", desc: "لرفع وشد أسفل عضلات البطن التي يصعب استهدافها", howTo: "اتعلق من البار وارفع ركبتك لصدرك بحركة تحكم من غير ترجيح بالجسم، وانزل ببطء" },
+    ],
+  },
+};
+
+/* ============================================================
+   أدوات التاريخ
+   ============================================================ */
+
+function pad(n) { return String(n).padStart(2, "0"); }
+function dateKey(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function isSameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+function startOfWeek(date) {
+  const d = new Date(date);
+  const diff = (d.getDay() + 1) % 7;
+  d.setDate(d.getDate() - diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function getWeekDates(offset) {
+  const base = startOfWeek(new Date());
+  base.setDate(base.getDate() + offset * 7);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    return d;
+  });
+}
+
+/* ============================================================
+   الرسومات المتحركة
+   ============================================================ */
+
+const strokeProps = { fill: "none", stroke: "currentColor", strokeWidth: 6, strokeLinecap: "round" };
+
+function Pictogram({ cat }) {
+  const s = strokeProps;
+  const Head = <circle cx="50" cy="14" r="8" fill="currentColor" stroke="none" />;
+  const Torso = <line x1="50" y1="22" x2="50" y2="68" {...s} />;
+  const Legs = (
+    <>
+      <line x1="50" y1="68" x2="38" y2="108" {...s} />
+      <line x1="50" y1="68" x2="62" y2="108" {...s} />
+    </>
+  );
+
+  switch (cat) {
+    case "press":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-press">
+          {Legs}{Torso}{Head}
+          <line x1="50" y1="26" x2="72" y2="18" className="arm-r" {...s} />
+          <line x1="50" y1="26" x2="28" y2="18" className="arm-l" {...s} />
+        </svg>
+      );
+    case "raise":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-raise">
+          {Legs}{Torso}{Head}
+          <line x1="50" y1="26" x2="80" y2="26" className="arm-r" {...s} />
+          <line x1="50" y1="26" x2="20" y2="26" className="arm-l" {...s} />
+        </svg>
+      );
+    case "pull":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-pull">
+          {Legs}{Torso}{Head}
+          <line x1="50" y1="26" x2="75" y2="12" className="arm-r" {...s} />
+          <line x1="50" y1="26" x2="25" y2="12" className="arm-l" {...s} />
+        </svg>
+      );
+    case "curl":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-curl">
+          {Legs}{Torso}{Head}
+          <path d="M 50 26 Q 65 35 60 15" className="arm-r" {...s} />
+          <path d="M 50 26 Q 35 35 40 15" className="arm-l" {...s} />
+        </svg>
+      );
+    case "triceps":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-triceps">
+          {Legs}{Torso}{Head}
+          <path d="M 50 26 Q 60 15 65 42" className="arm-r" {...s} />
+          <path d="M 50 26 Q 40 15 35 42" className="arm-l" {...s} />
+        </svg>
+      );
+    case "squat":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-squat">
+          <g className="body-group">
+            <line x1="50" y1="26" x2="66" y2="34" {...s} />
+            <line x1="50" y1="26" x2="34" y2="34" {...s} />
+            {Legs}{Torso}{Head}
+          </g>
+        </svg>
+      );
+    case "calf":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-calf">
+          <g className="body-group">
+            <line x1="50" y1="26" x2="66" y2="34" {...s} />
+            <line x1="50" y1="26" x2="34" y2="34" {...s} />
+            {Legs}{Torso}{Head}
+          </g>
+        </svg>
+      );
+    case "hinge":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-hinge">
+          {Legs}
+          <g className="upper-body">
+            {Torso}{Head}
+            <line x1="50" y1="26" x2="64" y2="40" {...s} />
+            <line x1="50" y1="26" x2="36" y2="40" {...s} />
+          </g>
+        </svg>
+      );
+    case "core":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-core">
+          {Torso}{Head}
+          <line x1="50" y1="26" x2="64" y2="34" {...s} />
+          <line x1="50" y1="26" x2="36" y2="34" {...s} />
+          <g className="legs-group">{Legs}</g>
+        </svg>
+      );
+    case "legext":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-legext">
+          <line x1="50" y1="26" x2="64" y2="34" {...s} />
+          <line x1="50" y1="26" x2="36" y2="34" {...s} />
+          {Torso}{Head}
+          <line x1="44" y1="68" x2="44" y2="88" {...s} />
+          <line x1="56" y1="68" x2="56" y2="88" {...s} />
+          <line x1="44" y1="88" x2="44" y2="106" className="shin-l" {...s} />
+          <line x1="56" y1="88" x2="56" y2="106" className="shin-r" {...s} />
+        </svg>
+      );
+    case "legcurl":
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-legcurl">
+          <line x1="50" y1="26" x2="64" y2="34" {...s} />
+          <line x1="50" y1="26" x2="36" y2="34" {...s} />
+          {Torso}{Head}
+          <line x1="44" y1="68" x2="44" y2="88" {...s} />
+          <line x1="56" y1="68" x2="56" y2="88" {...s} />
+          <line x1="44" y1="88" x2="44" y2="70" className="shin-l" {...s} />
+          <line x1="56" y1="88" x2="56" y2="70" className="shin-r" {...s} />
+        </svg>
+      );
+    case "hold":
+    default:
+      return (
+        <svg viewBox="0 0 100 118" className="pict anime-pulse">
+          <g className="pulse-group">
+            <line x1="50" y1="26" x2="66" y2="34" {...s} />
+            <line x1="50" y1="26" x2="34" y2="34" {...s} />
+            {Legs}{Torso}{Head}
+          </g>
+        </svg>
+      );
+  }
+}
+
+function RestGlyph() {
+  return (
+    <svg viewBox="0 0 100 100" className="pict rest-glyph">
+      <path d="M62 20 A32 32 0 1 0 62 80 A24 24 0 1 1 62 20 Z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function HistoryBars({ history }) {
+  if (!history || history.length === 0) return null;
+  const max = Math.max(...history.map((h) => h.weight), 1);
+  return (
+    <div className="hist-bars" title="آخر أوزان مسجّلة">
+      {history.map((h, i) => (
+        <div key={i} className="hist-bar-wrap">
+          <div className="hist-bar" style={{ height: `${Math.max(10, (h.weight / max) * 100)}%` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================
+   كارت التمرين
+   ============================================================ */
+
+function ExerciseCard({ exercise, index, sets, onSetChange, onToggleDone, best, history }) {
+  const hasWeight = exercise.hasWeight !== false;
+  const isTime = !!exercise.isTime;
+  const amountLabel = isTime ? "ثانية" : "عدد";
+  const allDone = sets.length > 0 && sets.every((s) => s.done);
+
+  const handleStep = (setIdx, field, currentVal, step) => {
+    const current = parseFloat(currentVal) || 0;
+    const nextVal = Math.max(0, current + step);
+    onSetChange(exercise.id, setIdx, field, String(nextVal));
+  };
+
+  return (
+    <div className={`ex-card ${allDone ? "ex-card-done" : ""}`}>
+      <div className="ex-head">
+        <div className="ex-badge">{String(index + 1).padStart(2, "0")}</div>
+        <div className="ex-titles">
+          <div className="ex-name">{exercise.name}</div>
+          <div className="ex-target">{exercise.sets} مجموعات × {exercise.target}</div>
+          {exercise.desc && <div className="ex-desc">{exercise.desc}</div>}
+        </div>
+        <div className="ex-pict-box"><Pictogram cat={exercise.cat} /></div>
+      </div>
+
+      {exercise.howTo && (
+        <div className="ex-howto">
+          <span className="howto-tag">الأداء</span>
+          <span className="howto-text">{exercise.howTo}</span>
+        </div>
+      )}
+
+      <div className="sets-grid">
+        {sets.map((set, i) => (
+          <div className={`set-row ${set.done ? "set-done" : ""}`} key={i}>
+            <span className="set-label">جولة {i + 1}</span>
+
+            {hasWeight && (
+              <div className="field-group">
+                <button type="button" className="step-btn" onClick={() => handleStep(i, "weight", set.weight, -2.5)}><Minus size={11} /></button>
+                <div className="field">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="وزن"
+                    value={set.weight}
+                    onChange={(e) => onSetChange(exercise.id, i, "weight", e.target.value)}
+                  />
+                  <span className="unit">كجم</span>
+                </div>
+                <button type="button" className="step-btn" onClick={() => handleStep(i, "weight", set.weight, 2.5)}><Plus size={11} /></button>
+              </div>
+            )}
+
+            <div className="field-group">
+              <button type="button" className="step-btn" onClick={() => handleStep(i, "amount", set.amount, -1)}><Minus size={11} /></button>
+              <div className="field">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder={amountLabel}
+                  value={set.amount}
+                  onChange={(e) => onSetChange(exercise.id, i, "amount", e.target.value)}
+                />
+                <span className="unit">{amountLabel}</span>
+              </div>
+              <button type="button" className="step-btn" onClick={() => handleStep(i, "amount", set.amount, 1)}><Plus size={11} /></button>
+            </div>
+
+            <button
+              type="button"
+              className={`done-btn ${set.done ? "on" : ""}`}
+              onClick={() => onToggleDone(exercise.id, i)}
+              aria-label="تم"
+            >
+              <Check size={16} strokeWidth={3} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {hasWeight && (
+        <div className="ex-footer">
+          <span className="best">
+            <TrendingUp size={12} style={{ verticalAlign: "-2px", marginLeft: 3 }} />
+            {best ? <>أفضل وزن: <b>{best} كجم</b></> : "أول مرة تسجّل التمرين"}
+          </span>
+          <HistoryBars history={history} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   التطبيق الرئيسي
+   ============================================================ */
+
+export default function GymTracker() {
+  const today = useMemo(() => new Date(), []);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selected, setSelected] = useState(today);
+  const [dayLog, setDayLog] = useState({});
+  const [stats, setStats] = useState({});
+  const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const saveTimer = useRef(null);
+
+  const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
+  const dow = selected.getDay();
+  const meta = DAY_META[dow];
+  const workout = meta.type === "train" ? WORKOUTS[meta.key] : null;
+  const key = dateKey(selected);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await window.storage.get("stats", false);
+        setStats(res ? JSON.parse(res.value) : {});
+      } catch (err) {
+        // مفتاح غير موجود لسه (أول استخدام) — مش خطأ فعلي
+        setStats({});
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setReady(false);
+    setLoadError(false);
+    (async () => {
+      let data = {};
+      try {
+        const res = await window.storage.get(`log:${key}`, false);
+        if (res) data = JSON.parse(res.value);
+      } catch (err) {
+        data = {};
+      }
+      const dayMeta = DAY_META[new Date(key).getDay()];
+      const dayWorkout = dayMeta.type === "train" ? WORKOUTS[dayMeta.key] : null;
+      if (!dayWorkout) {
+        if (active) { setDayLog({}); setReady(true); }
+        return;
+      }
+      const filled = {};
+      dayWorkout.exercises.forEach((ex) => {
+        const existing = data[ex.id];
+        filled[ex.id] =
+          existing && existing.length === ex.sets
+            ? existing
+            : Array.from({ length: ex.sets }, () => ({ weight: "", amount: "", done: false }));
+      });
+      if (active) { setDayLog(filled); setReady(true); }
+    })();
+    return () => { active = false; };
+  }, [key]);
+
+  const persist = useCallback((logObj, statsObj) => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await window.storage.set(`log:${key}`, JSON.stringify(logObj), false);
+        await window.storage.set("stats", JSON.stringify(statsObj), false);
+        setSaveError(false);
+      } catch (err) {
+        setSaveError(true);
+      }
+    }, 500);
+  }, [key]);
+
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
+
+  const recomputeStats = (logObj, baseStats) => {
+    if (!workout) return baseStats;
+    const next = { ...baseStats };
+    workout.exercises.forEach((ex) => {
+      if (ex.hasWeight === false) return;
+      const weights = (logObj[ex.id] || []).map((s) => parseFloat(s.weight)).filter((n) => !isNaN(n) && n > 0);
+      if (weights.length === 0) return;
+      const maxW = Math.max(...weights);
+      const prev = next[ex.id] || { best: 0, history: [] };
+      const best = Math.max(prev.best || 0, maxW);
+      let history = [...(prev.history || [])];
+      const idx = history.findIndex((h) => h.date === key);
+      if (idx >= 0) history[idx] = { date: key, weight: maxW };
+      else history.push({ date: key, weight: maxW });
+      history = history.sort((a, b) => (a.date > b.date ? 1 : -1)).slice(-6);
+      next[ex.id] = { best, history };
+    });
+    return next;
+  };
+
+  const updateLog = (exerciseId, setIndex, field, value) => {
+    const updated = {
+      ...dayLog,
+      [exerciseId]: dayLog[exerciseId].map((s, i) => (i === setIndex ? { ...s, [field]: value } : s)),
+    };
+    setDayLog(updated);
+    const nextStats = recomputeStats(updated, stats);
+    setStats(nextStats);
+    persist(updated, nextStats);
+  };
+
+  const toggleDone = (exerciseId, setIndex) => {
+    const updated = {
+      ...dayLog,
+      [exerciseId]: dayLog[exerciseId].map((s, i) => (i === setIndex ? { ...s, done: !s.done } : s)),
+    };
+    setDayLog(updated);
+    const nextStats = recomputeStats(updated, stats);
+    setStats(nextStats);
+    persist(updated, nextStats);
+  };
+
+  const goToday = () => { setWeekOffset(0); setSelected(today); };
+
+  const restText =
+    meta.type === "rest"
+      ? meta.note === "full"
+        ? { title: "يوم راحة كامل", sub: "من غير مذاكرة ولا جيم — وقت الحلاقة كل جمعتين ✂️", icon: <Scissors size={18} /> }
+        : { title: "يوم بدون جيم", sub: "مذاكرة GF بس + سنتر GF من 1 لـ3 — الجيم غدًا إن شاء الله", icon: <BookOpen size={18} /> }
+      : null;
+
+  const totalSets = workout ? workout.exercises.reduce((a, e) => a + e.sets, 0) : 0;
+  const doneSets = workout
+    ? workout.exercises.reduce((a, e) => a + (dayLog[e.id] || []).filter((s) => s.done).length, 0)
+    : 0;
+  const progressPct = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
+
+  return (
+    <div className="app-root" dir="rtl">
+      <style>{CSS}</style>
+
+      <header className="top-bar">
+        <div className="brand">
+          <Flame size={20} className="brand-icon" />
+          <span>سجل الجيم</span>
+        </div>
+        {weekOffset !== 0 && (
+          <button className="today-btn" onClick={goToday}>النهاردة</button>
+        )}
+      </header>
+
+      <div className="week-nav">
+        <button className="nav-arrow" onClick={() => setWeekOffset((o) => o - 1)} aria-label="الأسبوع اللي فات">
+          <ChevronRight size={18} />
+        </button>
+        <div className="week-strip">
+          {weekDates.map((d) => {
+            const m = DAY_META[d.getDay()];
+            const isSel = isSameDay(d, selected);
+            const isToday = isSameDay(d, today);
+            const dKey = dateKey(d);
+            const dLog = isSel ? dayLog : null;
+            let dayDone = false;
+            if (isSel && m.type === "train") {
+              const w = WORKOUTS[m.key];
+              const t = w.exercises.reduce((a, e) => a + e.sets, 0);
+              const dn = w.exercises.reduce((a, e) => a + (dLog[e.id] || []).filter((s) => s.done).length, 0);
+              dayDone = t > 0 && dn === t;
+            }
+            return (
+              <button
+                key={dKey}
+                className={`day-chip ${isSel ? "sel" : ""} ${isToday ? "is-today" : ""} ${m.type === "rest" ? "is-rest" : ""} ${dayDone ? "is-complete" : ""}`}
+                onClick={() => setSelected(d)}
+              >
+                <span className="chip-dow">{SHORT_DAY[d.getDay()]}</span>
+                <span className="chip-date">{d.getDate()}</span>
+                <span className="chip-marker">{m.type === "rest" ? <RestGlyph /> : <span className="chip-dot" />}</span>
+              </button>
+            );
+          })}
+        </div>
+        <button className="nav-arrow" onClick={() => setWeekOffset((o) => o + 1)} aria-label="الأسبوع الجاي">
+          <ChevronLeft size={18} />
+        </button>
+      </div>
+
+      <main className="content">
+        {loadError && (
+          <div className="banner banner-error">
+            <AlertTriangle size={16} />
+            <span>حصل خطأ في تحميل بيانات اليوم ده. جرّب تقفل وتفتح تاني.</span>
+          </div>
+        )}
+        {saveError && (
+          <div className="banner banner-error">
+            <AlertTriangle size={16} />
+            <span>مقدرناش نحفظ آخر تعديل. اتأكد إنك متصل بالنت.</span>
+          </div>
+        )}
+
+        <div className="day-title-row">
+          <div>
+            <h1>{FULL_DAY[dow]}</h1>
+            {workout ? (
+              <p className="day-sub">{workout.title} — {workout.focus}</p>
+            ) : (
+              <p className="day-sub">يوم راحة</p>
+            )}
+          </div>
+          {workout && (
+            <div className="progress-ring-wrap">
+              <div className="progress-ring" style={{ "--pct": `${progressPct}%` }}>
+                <span>{progressPct}%</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {!ready && workout && <div className="loading-note">جاري التحميل…</div>}
+
+        {restText && (
+          <div className="rest-card">
+            <div className="rest-icon">{restText.icon}</div>
+            <div>
+              <div className="rest-title">{restText.title}</div>
+              <div className="rest-sub">{restText.sub}</div>
+            </div>
+          </div>
+        )}
+
+        {ready && workout && (
+          <div className="ex-list">
+            {workout.exercises.map((ex, i) => (
+              <ExerciseCard
+                key={ex.id}
+                exercise={ex}
+                index={i}
+                sets={dayLog[ex.id] || []}
+                onSetChange={updateLog}
+                onToggleDone={toggleDone}
+                best={stats[ex.id]?.best}
+                history={stats[ex.id]?.history}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+/* ============================================================
+   التصميم — CSS
+   ============================================================ */
+
+const CSS = `
+:root {
+  --bg: #10121A;
+  --bg-elev: #171A24;
+  --card: #1C2030;
+  --card-border: #2A2F42;
+  --accent: #C6FF3D;
+  --accent-dim: #8FCC1F;
+  --danger: #FF5C5C;
+  --text: #EDEEF5;
+  --text-mute: #8A8FA8;
+  --radius: 16px;
+  font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+.app-root {
+  background: radial-gradient(circle at 20% 0%, #1a2013 0%, var(--bg) 45%);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 16px 14px 40px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.3px;
+}
+.brand-icon { color: var(--accent); filter: drop-shadow(0 0 6px rgba(198,255,61,0.5)); }
+.today-btn {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.today-btn:hover { border-color: var(--accent); }
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+.nav-arrow {
+  background: var(--bg-elev);
+  border: 1px solid var(--card-border);
+  color: var(--text-mute);
+  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nav-arrow:hover { color: var(--accent); border-color: var(--accent); }
+
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  flex: 1;
+}
+.day-chip {
+  background: var(--bg-elev);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 8px 2px 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  color: var(--text-mute);
+  position: relative;
+}
+.day-chip .chip-dow { font-size: 10px; font-weight: 700; }
+.day-chip .chip-date { font-size: 14px; font-weight: 800; color: var(--text); }
+.day-chip .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-dim); display: block; }
+.day-chip .chip-marker { height: 14px; display: flex; align-items: center; justify-content: center; }
+.day-chip .chip-marker .rest-glyph { width: 12px; height: 12px; color: var(--text-mute); }
+.day-chip.is-today { border-color: rgba(198,255,61,0.5); }
+.day-chip.sel {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #14170d;
+}
+.day-chip.sel .chip-date { color: #14170d; }
+.day-chip.sel .chip-dot { background: #14170d; }
+.day-chip.sel .chip-marker .rest-glyph { color: #14170d; }
+.day-chip.is-complete:not(.sel) .chip-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+.content { display: flex; flex-direction: column; gap: 14px; }
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.banner-error { background: rgba(255,92,92,0.12); color: var(--danger); border: 1px solid rgba(255,92,92,0.3); }
+
+.day-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.day-title-row h1 { font-size: 22px; margin: 0 0 2px; font-weight: 900; }
+.day-sub { margin: 0; color: var(--text-mute); font-size: 13px; font-weight: 600; }
+
+.progress-ring-wrap { flex-shrink: 0; }
+.progress-ring {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  background: conic-gradient(var(--accent) var(--pct), var(--card-border) 0);
+  position: relative;
+}
+.progress-ring::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--bg-elev);
+}
+.progress-ring span { position: relative; z-index: 1; }
+
+.loading-note { color: var(--text-mute); font-size: 13px; padding: 20px 0; text-align: center; }
+
+.rest-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.rest-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(198,255,61,0.12);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rest-title { font-weight: 800; font-size: 15px; margin-bottom: 3px; }
+.rest-sub { color: var(--text-mute); font-size: 13px; line-height: 1.5; }
+
+.ex-list { display: flex; flex-direction: column; gap: 12px; }
+
+.ex-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 14px;
+  transition: border-color 0.2s ease;
+}
+.ex-card-done { border-color: var(--accent-dim); }
+
+.ex-head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+.ex-badge {
+  background: var(--bg-elev);
+  color: var(--accent);
+  font-weight: 900;
+  font-size: 12px;
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ex-titles { flex: 1; min-width: 0; }
+.ex-name { font-weight: 800; font-size: 15px; }
+.ex-target { color: var(--accent-dim); font-size: 12px; font-weight: 700; margin-top: 1px; }
+.ex-desc { color: var(--text-mute); font-size: 12px; margin-top: 4px; line-height: 1.5; }
+.ex-pict-box {
+  width: 46px;
+  height: 54px;
+  flex-shrink: 0;
+  color: var(--text-mute);
+}
+.ex-card-done .ex-pict-box { color: var(--accent); }
+.pict { width: 100%; height: 100%; }
+
+.ex-howto {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(198,255,61,0.06);
+  border: 1px solid rgba(198,255,61,0.18);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+.howto-tag {
+  flex-shrink: 0;
+  background: var(--accent);
+  color: #14170d;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-top: 1px;
+}
+.howto-text {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.sets-grid { display: flex; flex-direction: column; gap: 6px; }
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-elev);
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+.set-row.set-done { background: rgba(198,255,61,0.08); }
+.set-label { font-size: 11px; color: var(--text-mute); font-weight: 700; width: 42px; flex-shrink: 0; }
+
+.field-group { display: flex; align-items: center; gap: 3px; flex: 1; }
+.field {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.field input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  -moz-appearance: textfield;
+}
+.field input::-webkit-outer-spin-button,
+.field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.field .unit { font-size: 10px; color: var(--text-mute); flex-shrink: 0; }
+
+.step-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text-mute);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.step-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.done-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text-mute);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.done-btn.on { background: var(--accent); border-color: var(--accent); color: #14170d; }
+
+.ex-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--card-border);
+}
+.best { font-size: 12px; color: var(--text-mute); }
+.best b { color: var(--accent); }
+
+.hist-bars { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
+.hist-bar-wrap { width: 5px; height: 100%; display: flex; align-items: flex-end; }
+.hist-bar { width: 100%; background: var(--accent-dim); border-radius: 2px; min-height: 10%; }
+
+/* --- Pictogram animations --- */
+.pict .arm-r, .pict .arm-l, .pict .shin-l, .pict .shin-r,
+.pict .body-group, .pict .upper-body, .pict .legs-group, .pict .pulse-group {
+  transform-origin: 50px 26px;
+}
+
+.anime-press .arm-r { animation: pressR 1.4s ease-in-out infinite; }
+.anime-press .arm-l { animation: pressL 1.4s ease-in-out infinite; }
+@keyframes pressR { 0%,100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+@keyframes pressL { 0%,100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+
+.anime-raise .arm-r { animation: raiseR 1.6s ease-in-out infinite; }
+.anime-raise .arm-l { animation: raiseL 1.6s ease-in-out infinite; }
+@keyframes raiseR { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-18deg); } }
+@keyframes raiseL { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(18deg); } }
+
+.anime-pull .arm-r { animation: pullR 1.3s ease-in-out infinite; }
+.anime-pull .arm-l { animation: pullL 1.3s ease-in-out infinite; }
+@keyframes pullR { 0%,100% { transform: translateY(0); } 50% { transform: translateY(8px) rotate(6deg); } }
+@keyframes pullL { 0%,100% { transform: translateY(0); } 50% { transform: translateY(8px) rotate(-6deg); } }
+
+.anime-curl .arm-r, .anime-curl .arm-l { animation: curl 1.2s ease-in-out infinite; transform-origin: 50px 26px; }
+@keyframes curl { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(1.15) translateY(-2px); } }
+
+.anime-triceps .arm-r, .anime-triceps .arm-l { animation: tri 1.3s ease-in-out infinite; }
+@keyframes tri { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+
+.anime-squat .body-group { animation: squat 1.6s ease-in-out infinite; }
+@keyframes squat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(14px) scaleY(0.9); } }
+
+.anime-calf .body-group { animation: calf 1s ease-in-out infinite; }
+@keyframes calf { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+.anime-hinge .upper-body { animation: hinge 1.6s ease-in-out infinite; transform-origin: 50px 68px; }
+@keyframes hinge { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(20deg); } }
+
+.anime-core .legs-group { animation: core 1.3s ease-in-out infinite; transform-origin: 50px 68px; }
+@keyframes core { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-35deg); } }
+
+.anime-legext .shin-l, .anime-legext .shin-r { animation: legext 1.2s ease-in-out infinite; transform-origin: 44px 88px; }
+@keyframes legext { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(28deg); } }
+
+.anime-legcurl .shin-l, .anime-legcurl .shin-r { animation: legcurl 1.2s ease-in-out infinite; transform-origin: 44px 88px; }
+@keyframes legcurl { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-28deg); } }
+
+.anime-pulse .pulse-group { animation: pulseHold 1.8s ease-in-out infinite; }
+@keyframes pulseHold { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.04); opacity: 0.75; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pict * { animation: none !important; }
+}
+
+@media (max-width: 380px) {
+  .set-label { display: none; }
+  .field .unit { display: none; }
+}
+`;
